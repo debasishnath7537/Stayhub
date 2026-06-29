@@ -1,0 +1,55 @@
+# Booking Platform Delivery
+
+The Hotel & Homestay Booking Platform has been successfully built utilizing the MERN stack with modern aesthetics.
+
+## What was built
+We have implemented the complete Merchant Business Model outlined during the planning phase. The project is split into a robust backend and a beautiful, high-conversion frontend.
+
+### 1. The Frontend (React + Vite + Tailwind CSS V4)
+The frontend resides in `d:\Booking Platform\frontend` and includes:
+- **Home Page (`/`)**: A beautiful, conversion-optimized hero section with property highlights.
+- **Properties Map (`/properties`)**: A dedicated listing page with sidebar filters for Hotels vs Homestays and sorting mechanisms.
+- **Property Details (`/property/:id`)**: Comprehensive views with image galleries, amenities, and a dynamic "Reserve Now" widget.
+- **Checkout Flow (`/checkout`)**: Secure checkout displaying the Net Rate + Platform Markup taxes calculation, with options for "Pay Now" or "Pay at Hotel".
+- **User Authentication (`/login`, `/register`)**: Modern authentication forms.
+- **User Dashboard (`/dashboard`)**: A portal for users to track their booking statuses.
+- **Admin Panel (`/admin`)**: A comprehensive internal tool for you to track Revenue, Manage Inventory (your contracted base prices vs platform selling prices), and View Bookings.
+
+### 2. The Backend (Node.js + Express + MongoDB)
+The backend REST APIs reside in `d:\Booking Platform\backend`:
+- **MongoDB Data Models:**
+  - `User`: Manage customers and admin roles.
+  - [Property](file:///d:/Booking%20Platform/frontend/src/pages/PropertyDetails.jsx#6-149): Base Price (what the hotel gets) vs Platform Price (what the user pays).
+  - `Booking`: Ties users, properties, check-in dates, and payment methods.
+- **Authentication:** JWT-based secure login and registration endpoints.
+- **Property APIs:** CRUD endpoints for admins to update inventory.
+- **Booking APIs:** Endpoints that instantly process customer reservations.
+
+---
+
+## How to Run It
+
+1. **Frontend:**
+   Navigate into the `frontend` folder and run the Vite dev server:
+   ```bash
+   cd "d:\Booking Platform\frontend"
+   npm run dev
+   ```
+   *Visit `http://localhost:5173` in your browser.*
+
+2. **Backend:**
+   You will need to create a `.env` file inside the `backend` folder to connect a real MongoDB database:
+   ```env
+   PORT=5000
+   MONGO_URI=your_mongodb_connection_string
+   JWT_SECRET=your_super_secret_key
+   ```
+   Then start the server:
+   ```bash
+   cd "d:\Booking Platform\backend"
+   node index.js
+   ```
+
+## Next Steps for You
+- To launch into production, you will need to add a MongoDB URI to the backend and integrate your real payment gateway (Razorpay or Stripe) into the checkout API route we mapped out.
+- Explore the UI and verify the aesthetic matches your premium business model!

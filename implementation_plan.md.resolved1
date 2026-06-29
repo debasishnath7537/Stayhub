@@ -1,0 +1,65 @@
+# Booking Platform Implementation Plan
+
+This document outlines the technical architecture and development plan for building the Hotel & Homestay Booking Platform using the MERN stack.
+
+## User Review Required
+- Please review this technical roadmap. Once you approve, we will begin Phase 1 (Frontend & Backend Setup).
+- Do you have a preferred Payment Gateway in mind? (e.g., Razorpay, Stripe)
+- Would you like the Admin panel to be integrated into the main website, or separated as a different dashboard?
+
+## Proposed Architecture
+
+### Tech Stack
+- **Frontend:** React (powered by Vite) + Tailwind CSS + Framer Motion (for smooth modern animations).
+- **Backend:** Node.js with Express.js.
+- **Database:** MongoDB (using Mongoose for schema modeling).
+- **Authentication:** JWT (JSON Web Tokens).
+- **Payments:** TBD (Stripe/Razorpay via backend).
+
+### Core Features
+
+#### Customer Facing (The Website)
+- **Home Page:** Search bar (Location, Dates, Guests), Featured Hotels & Homestays, Modern Hero Section.
+- **Search Results:** Filters (Price, Type, Amenities), Map View (optional), Property Cards.
+- **Property Details:** Image gallery, detailed description, amenities, dynamic pricing strictly based on base rate + markup, and booking form.
+- **User Dashboard:** View past/upcoming bookings, manage profile.
+
+#### Admin Facing (The Dashboard)
+- **Dashboard:** Overview of revenue, total bookings, active properties.
+- **Property Management:** Add/Edit/Delete hotels and homestays. Set negotiated Base Price and Platform Selling Price.
+- **Booking Management:** View all bookings, statuses, and customer details.
+
+---
+
+## Proposed Changes (Phase 1 Steps)
+
+### Phase 1: Project Initialization & Database Design
+- Set up the MERN project scaffolding (Client and Server folders).
+- Initialize Tailwind CSS and define the premium modern color palette.
+- **MongoDB Schema Design:**
+  - `User` Schema (Role: Admin/Customer)
+  - `Property` Schema (Type: Hotel/Homestay, BasePrice, SellingPrice, Images, Amenities)
+  - `Booking` Schema (UserReference, PropertyReference, Dates, TotalAmount, Status)
+
+### Phase 2: Backend API Development
+- `POST /api/auth/register` & `login`
+- `GET /api/properties` (with filtering queries)
+- `GET /api/properties/:id`
+- `POST /api/bookings` (requires auth)
+- Admin-only routes for managing inventory.
+
+### Phase 3: Frontend Implementation
+- Build `Navbar`, `Footer`, and `Hero` components focusing on premium modern aesthetics.
+- Build `PropertyCard` and `SearchFilters`.
+- Build the `Booking Checkout Flow`.
+- Build the `Admin Dashboard`.
+
+## Verification Plan
+
+### Automated/API Testing
+- We will test the REST APIs using a local HTTP client/cURL to ensure endpoints return the correct JSON structure for properties and bookings.
+- We will verify JWT authentication flow properly restricts access to Admin routes.
+
+### Manual Verification
+- We will run the React frontend locally (`npm run dev`) and test responsiveness on mobile and desktop viewports.
+- We will simulate an end-to-end customer booking flow (Search -> View Property -> Checkout -> Success) and an Admin flow (Add Property -> View Booking) to ensure the features work harmoniously.

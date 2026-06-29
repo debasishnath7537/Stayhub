@@ -1,0 +1,90 @@
+# Phone OTP + Google OAuth — Implementation Plan
+
+Firebase Auth handles both features in one SDK — frontend authenticates, backend verifies the Firebase ID token and issues our own JWT.
+
+## Architecture
+
+```
+User → Firebase (Google/Phone OTP) → Firebase ID Token
+                                         ↓
+                    POST /api/auth/firebase { idToken, role }
+                                         ↓
+                    Backend verifies with Firebase Admin
+                                         ↓
+                    Find or create MongoDB user → return JWT
+```
+
+## User Review Required
+
+> [!IMPORTANT]
+> You need a **Firebase project** to use this feature.
+> 1. Go to [console.firebase.google.com](https://console.firebase.google.com) → Create project
+> 2. Enable **Authentication → Sign-in methods → Google** ✅
+> 3. Enable **Authentication → Sign-in methods → Phone** ✅
+> 4. Add a **Web App** → copy the config (apiKey, projectId, etc.)
+> 5. **Project Settings → Service Accounts → Generate new private key** → save JSON
+
+## Proposed Changes
+
+---
+
+### Backend
+
+#### [NEW] `firebase-admin` package install
+
+#### [MODIFY] [.env](file:///d:/Booking%20Platform/backend/.env)
+Add:
+```
+FIREBASE_PROJECT_ID=your-project-id
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-...@...iam.gserviceaccount.com  
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+```
+
+#### [NEW] `backend/config/firebase.js`
+Initialize Firebase Admin SDK.
+
+#### [NEW] [backend/routes/auth.js](file:///d:/Booking%20Platform/backend/routes/auth.js) — add `POST /api/auth/firebase`
+- Verify Firebase ID token via Admin SDK
+- Extract `name`, `email` or `phone_number`, `uid` from decoded token
+- `findOrCreate` user in MongoDB with correct role
+- Return our JWT
+
+---
+
+### Frontend
+
+#### [NEW] `firebase` package install
+
+#### [NEW] `frontend/src/config/firebase.js`
+Firebase web config (using env vars).
+
+#### [NEW] `frontend/src/components/auth/PhoneOTPLogin.jsx`
+Reusable component:
+- Phone number input with country code
+- "Send OTP" → Firebase `signInWithPhoneNumber` (with invisible reCAPTCHA)
+- 6-digit OTP input
+- On verify → call backend `/api/auth/firebase` with ID token
+
+#### [NEW] `frontend/src/components/auth/GoogleLogin.jsx`
+Reusable component:
+- "Sign in with Google" button → Firebase `signInWithPopup(GoogleAuthProvider)`
+- On success → call backend `/api/auth/firebase` with ID token
+
+#### [MODIFY] [frontend/src/pages/Login.jsx](file:///d:/Booking%20Platform/frontend/src/pages/Login.jsx)
+Add tabs: **Email/Password | Phone OTP | Google**
+
+#### [MODIFY] [frontend/src/pages/Register.jsx](file:///d:/Booking%20Platform/frontend/src/pages/Register.jsx)
+Add "Sign up with Google" button.
+
+#### [MODIFY] [frontend/src/pages/OwnerLogin.jsx](file:///d:/Booking%20Platform/frontend/src/pages/OwnerLogin.jsx)
+Add **Phone OTP** and **Google** tabs (same components, `role='owner'` passed).
+
+## Verification Plan
+
+### Automated Tests
+- Backend: `POST /api/auth/firebase` with a mock decoded token structure
+
+### Manual Verification
+- Test Google login on `/login` → user appears in DB with role=customer  
+- Test Phone OTP on `/login` → OTP received on phone
+- Test Google on `/owner/login` → blocked if not owner role
