@@ -18,7 +18,7 @@ const propertySchema = new mongoose.Schema({
   description: { type: String, required: true },
   roomTypes: [{
     name: { type: String, required: true },
-    totalInventory: { type: Number, required: true, min: 1 },
+    totalInventory: { type: Number, required: true, min: 0 },
     capacity: { type: Number, required: true, min: 1 },
     price: { type: Number, required: true },
     amenities: [{ type: String }],

@@ -64,6 +64,20 @@ export default function OwnerDashboard() {
     return matchFilter && matchSearch;
   });
 
+  const updateInventory = async (propertyId, roomTypeId, newInventory) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/owner/properties/${propertyId}/inventory`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ roomTypeId, totalInventory: newInventory })
+      });
+      if (res.ok) {
+        const updatedProp = await res.json();
+        setProperties(properties.map(p => p._id === updatedProp._id ? updatedProp : p));
+      }
+    } catch (e) { console.error(e); }
+  };
+
   const navItems = [
     { id: 'overview',    label: 'Overview',     icon: LayoutDashboard },
     { id: 'properties',  label: 'My Properties',icon: Home },
@@ -289,6 +303,24 @@ export default function OwnerDashboard() {
                               <p className="text-gray-400">Total revenue</p>
                               <p className="font-bold text-gray-900">₹{fmt(revenue)}</p>
                             </div>
+                          </div>
+
+                          {/* Inventory Management */}
+                          <div className="mt-3 pt-3 border-t border-gray-100 text-xs">
+                            <p className="text-gray-400 mb-2 font-semibold flex items-center justify-between">
+                              <span>Manage Available Units</span>
+                              <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">For offline bookings</span>
+                            </p>
+                            {p.roomTypes?.map(rt => (
+                              <div key={rt._id} className="flex justify-between items-center bg-gray-50 p-2 rounded-lg mb-1">
+                                <span className="font-medium text-gray-700 truncate mr-2">{rt.name}</span>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <button onClick={() => updateInventory(p._id, rt._id, Math.max(0, rt.totalInventory - 1))} className="w-6 h-6 rounded bg-white border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-red-500 transition shadow-sm">-</button>
+                                  <span className="font-bold text-sm w-4 text-center">{rt.totalInventory}</span>
+                                  <button onClick={() => updateInventory(p._id, rt._id, rt.totalInventory + 1)} className="w-6 h-6 rounded bg-white border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-emerald-500 transition shadow-sm">+</button>
+                                </div>
+                              </div>
+                            ))}
                           </div>
 
                           <button onClick={() => { setBFilter('All'); setTab('bookings'); }}

@@ -84,4 +84,26 @@ router.get('/stats', auth, ownerOnly, async (req, res) => {
   }
 });
 
+// @route PUT /api/owner/properties/:id/inventory
+// @desc  Update total inventory for a specific room type
+router.put('/properties/:id/inventory', auth, ownerOnly, async (req, res) => {
+  try {
+    const property = await Property.findOne({ _id: req.params.id, ownedBy: req.user.id });
+    if (!property) return res.status(404).json({ msg: 'Property not found' });
+    
+    const { roomTypeId, totalInventory } = req.body;
+    const room = property.roomTypes.id(roomTypeId);
+    if (!room) return res.status(404).json({ msg: 'Room type not found' });
+    
+    // Ensure inventory is at least 0
+    room.totalInventory = Math.max(0, parseInt(totalInventory, 10));
+    await property.save();
+    
+    res.json(property);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
 module.exports = router;

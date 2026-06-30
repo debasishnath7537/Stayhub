@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   MapPin, Star, Check, Wifi, Coffee, Wind, Users,
   Dumbbell, Waves, Utensils, Car, Tv, ShieldCheck,
-  ChevronLeft, ChevronRight, AlertCircle, Loader2, MessageSquare
+  ChevronLeft, ChevronRight, AlertCircle, Loader2, MessageSquare, PhoneCall, X
 } from 'lucide-react';
 
 const API_BASE = 'http://localhost:5001';
@@ -42,6 +42,7 @@ const PropertyDetails = () => {
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState('');
   const [numberOfRooms, setNumberOfRooms] = useState(1);
+  const [showCallModal, setShowCallModal] = useState(false);
 
   // ── Fetch real property from backend ──────────────────────────────────────
   useEffect(() => {
@@ -85,7 +86,8 @@ const PropertyDetails = () => {
           const data = await res.json();
           setAvailableRooms(data);
           if (data.length > 0 && !selectedRoomId) {
-            setSelectedRoomId(data[0]._id);
+            const firstAvailable = data.find(r => r.availableInventory > 0) || data[0];
+            setSelectedRoomId(firstAvailable._id);
           }
         }
       } catch (err) {
@@ -131,6 +133,7 @@ const PropertyDetails = () => {
     if (!checkIn || !checkOut) { setDateError('Please select your check-in and check-out dates.'); return; }
     if (nights < 1) { setDateError('Minimum stay is 1 night.'); return; }
     if (!selectedRoomId) { setDateError('Please select a room type.'); return; }
+    if (selectedRoom?.availableInventory === 0) { setDateError('Selected room is sold out for these dates.'); return; }
     
     navigate('/checkout', {
       state: {
@@ -374,10 +377,11 @@ const PropertyDetails = () => {
                   <label className="block text-sm font-bold text-gray-900 mb-2">Select Room Type</label>
                   {availableRooms.map(room => {
                     const isSelected = selectedRoomId === room._id;
+                    const isSoldOut = room.availableInventory === 0;
                     return (
                       <div key={room._id} 
-                        onClick={() => { setSelectedRoomId(room._id); setNumberOfRooms(1); }}
-                        className={`p-3 border rounded-xl cursor-pointer transition ${isSelected ? 'border-primary-600 bg-primary-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
+                        onClick={() => { if (!isSoldOut) { setSelectedRoomId(room._id); setNumberOfRooms(1); } }}
+                        className={`p-3 border rounded-xl transition ${isSoldOut ? 'opacity-50 cursor-not-allowed bg-gray-50 border-gray-200' : isSelected ? 'border-primary-600 bg-primary-50 cursor-pointer' : 'border-gray-200 bg-white hover:border-gray-300 cursor-pointer'}`}>
                         <div className="flex justify-between items-center mb-1">
                           <span className="font-bold text-gray-900 text-sm">{room.name}</span>
                           <span className="font-bold text-primary-700 text-sm">₹{room.price} <span className="text-xs font-normal text-gray-500">/ night</span></span>
@@ -385,11 +389,11 @@ const PropertyDetails = () => {
                         <div className="flex justify-between items-end">
                           <div className="text-xs text-gray-500 space-y-0.5">
                             <p>Up to {room.capacity} guests</p>
-                            <p className={room.availableInventory < 3 ? "text-red-600 font-semibold" : "text-green-600"}>
-                              {room.availableInventory} left
+                            <p className={isSoldOut ? "text-red-600 font-bold" : room.availableInventory < 3 ? "text-red-600 font-semibold" : "text-green-600"}>
+                              {isSoldOut ? "0 left (Sold out)" : `${room.availableInventory} left`}
                             </p>
                           </div>
-                          {isSelected && (
+                          {isSelected && !isSoldOut && (
                             <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                               <label className="text-xs font-semibold text-gray-500 uppercase">Rooms</label>
                               <select value={numberOfRooms} onChange={e => setNumberOfRooms(Number(e.target.value))}
@@ -434,10 +438,17 @@ const PropertyDetails = () => {
                 </div>
               )}
 
-              <button onClick={handleBook}
-                className="w-full bg-primary-600 text-white py-3.5 rounded-xl font-bold text-base hover:bg-primary-700 active:scale-[0.98] transition shadow-md">
-                {user ? 'Reserve Now' : 'Log in to Book'}
-              </button>
+              <div className="flex gap-3">
+                <button onClick={handleBook}
+                  className="flex-1 bg-primary-600 text-white py-3.5 rounded-xl font-bold text-base hover:bg-primary-700 active:scale-[0.98] transition shadow-md">
+                  {user ? 'Reserve Now' : 'Log in to Book'}
+                </button>
+                <button onClick={() => setShowCallModal(true)}
+                  title="Call to Enquire"
+                  className="w-[52px] h-[52px] flex items-center justify-center shrink-0 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-xl hover:bg-emerald-100 hover:text-emerald-700 transition">
+                  <PhoneCall className="w-5 h-5" />
+                </button>
+              </div>
               <p className="text-center text-xs text-gray-400 mt-3">
                 {user ? "You won't be charged yet" : 'Create a free account to make a reservation'}
               </p>
@@ -452,6 +463,38 @@ const PropertyDetails = () => {
 
         </div>
       </div>
+
+      {/* Call to Enquire Modal */}
+      {showCallModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={(e) => e.target === e.currentTarget && setShowCallModal(false)}>
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl relative animate-in fade-in zoom-in duration-200">
+            <button onClick={() => setShowCallModal(false)} className="absolute top-4 right-4 p-1.5 text-gray-400 hover:bg-gray-100 rounded-xl transition">
+              <X className="w-5 h-5" />
+            </button>
+            
+            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-emerald-50">
+              <PhoneCall className="w-7 h-7 text-emerald-600" />
+            </div>
+            
+            <h3 className="text-xl font-extrabold text-gray-900 text-center mb-2">Call to Enquire</h3>
+            <p className="text-gray-500 text-sm text-center mb-6">Call our StayHub support team and quote the Property ID below to book this property directly over the phone.</p>
+            
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center mb-6">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">StayHub Support</p>
+              <a href="tel:+9118001234567" className="block text-2xl font-black text-emerald-600 hover:text-emerald-700 transition mb-3">+91 1800-123-4567</a>
+              
+              <div className="h-px w-full bg-gray-200 my-3"></div>
+              
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Property ID</p>
+              <p className="font-mono text-xl font-bold text-gray-900 tracking-wider">#{property._id.slice(-6).toUpperCase()}</p>
+            </div>
+            
+            <button onClick={() => setShowCallModal(false)} className="w-full bg-gray-900 text-white font-bold py-3 rounded-xl hover:bg-gray-800 transition">
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </MainLayout>
   );
 };
