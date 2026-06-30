@@ -247,6 +247,25 @@ const PropertyDetails = () => {
 
           {/* Left */}
           <div className="flex-1">
+            {user?.role === 'admin' && property.ownerContact && (
+              <div className="mb-8 p-5 bg-amber-50 border border-amber-200 rounded-xl shadow-sm">
+                <h3 className="text-lg font-bold text-amber-900 mb-3 flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5" /> Admin Review: Submitter Details
+                </h3>
+                <div className="grid grid-cols-2 gap-4 text-sm text-amber-800">
+                  <div><span className="font-semibold">Name:</span> {property.ownerContact.name}</div>
+                  <div><span className="font-semibold">Phone:</span> {property.ownerContact.phone}</div>
+                  <div className="col-span-2"><span className="font-semibold">Email:</span> {property.ownerContact.email}</div>
+                  {property.ownerNote && (
+                    <div className="col-span-2 mt-2">
+                      <span className="font-semibold">Additional Note:</span>
+                      <p className="mt-1 text-amber-900 bg-white/50 p-3 rounded-lg border border-amber-200 whitespace-pre-wrap">{property.ownerNote}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             <h2 className="text-2xl font-bold text-gray-900 mb-3">About this property</h2>
             <p className="text-gray-600 leading-relaxed mb-8">{property.description}</p>
 

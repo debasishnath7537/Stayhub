@@ -119,14 +119,14 @@ router.get('/:id', async (req, res) => {
 // @desc Submit a property enquiry (Public)
 router.post('/enquiry', async (req, res) => {
   try {
-    const { name, type, location, basePrice, platformPrice, description, amenities, images, ownerContact, ownerNote } = req.body;
+    const { name, type, location, basePrice, platformPrice, description, amenities, images, ownerContact, ownerNote, roomTypes } = req.body;
     
     // Ensure the property is strictly inactive and unassigned
     const newProperty = new Property({
       name, type, location, basePrice, platformPrice, description, amenities, images, ownerContact, ownerNote,
       isActive: false,
       ownedBy: null,
-      roomTypes: []
+      roomTypes: roomTypes || []
     });
 
     const property = await newProperty.save();
@@ -215,6 +215,27 @@ router.put('/:id', [auth, adminAuth], async (req, res) => {
       { $set: req.body },
       { new: true }
     );
+
+    res.json(property);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// @route PUT api/properties/:id/inventory
+// @desc Update total inventory for a specific room type (Admin only)
+router.put('/:id/inventory', [auth, adminAuth], async (req, res) => {
+  try {
+    const property = await Property.findById(req.params.id);
+    if (!property) return res.status(404).json({ msg: 'Property not found' });
+
+    const { roomTypeId, totalInventory } = req.body;
+    const room = property.roomTypes.id(roomTypeId);
+    if (!room) return res.status(404).json({ msg: 'Room type not found' });
+
+    room.totalInventory = Math.max(0, parseInt(totalInventory, 10));
+    await property.save();
 
     res.json(property);
   } catch (err) {

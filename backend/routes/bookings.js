@@ -120,7 +120,7 @@ router.get('/all', auth, async (req, res) => {
     }
     const bookings = await Booking.find()
       .populate('user', ['name', 'email'])
-      .populate('property', ['name', 'type']);
+      .populate('property', ['name', 'type', 'roomTypes']);
     res.json(bookings);
   } catch (err) {
     console.error(err.message);

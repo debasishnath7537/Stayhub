@@ -58,6 +58,7 @@ const EnquiryForm = ({ onClose, initialType }) => {
     amenities:     [],
     images:        [],
     message:       '',
+    roomTypes:     [],
   });
   const [loading, setLoading]   = useState(false);
   const [success, setSuccess]   = useState(false);
@@ -81,13 +82,21 @@ const EnquiryForm = ({ onClose, initialType }) => {
         type: form.propertyType,
         location: { city: form.city, address: form.address },
         basePrice: Number(form.basePrice),
-        platformPrice: Number(form.platformPrice || form.basePrice),
+        platformPrice: Number(form.basePrice), // Handled by admin later, defaults to basePrice
         description: form.description || `Property listed by ${form.ownerName}`,
         amenities: form.amenities,
         images: form.images,
         isActive: false,   // pending admin approval
         ownerContact: { name: form.ownerName, email: form.email, phone: form.phone },
         ownerNote: form.message,
+        roomTypes: form.roomTypes.map(rt => ({
+          ...rt,
+          originalInventory: Number(rt.totalInventory),
+          totalInventory: Number(rt.totalInventory),
+          capacity: Number(rt.capacity),
+          price: Number(rt.price),
+          amenities: typeof rt.amenities === 'string' ? rt.amenities.split(',').map(s => s.trim()).filter(Boolean) : rt.amenities,
+        }))
       };
 
       const res = await fetch(`${API_BASE}/api/properties/enquiry`, {
@@ -185,15 +194,10 @@ const EnquiryForm = ({ onClose, initialType }) => {
           <label className={labelCls}>Full Address *</label>
           <input required className={fieldCls} value={form.address} onChange={e => set('address', e.target.value)} placeholder="123 Beach Road, North Goa, 403514" />
         </div>
-        <div>
+        <div className="sm:col-span-2">
           <label className={labelCls}>Your Net Rate ₹/night *</label>
           <input required type="number" min="1" className={fieldCls} value={form.basePrice} onChange={e => set('basePrice', e.target.value)} placeholder="1400" />
-          <p className="text-xs text-gray-400 mt-1">The price you want to receive per night</p>
-        </div>
-        <div>
-          <label className={labelCls}>Suggested Sell Price ₹/night</label>
-          <input type="number" min="1" className={fieldCls} value={form.platformPrice} onChange={e => set('platformPrice', e.target.value)} placeholder="1650" />
-          <p className="text-xs text-gray-400 mt-1">Leave blank to let our team decide</p>
+          <p className="text-xs text-gray-400 mt-1">The price you want to receive per night. Admin will determine the final platform sell price.</p>
         </div>
       </div>
 
@@ -222,8 +226,41 @@ const EnquiryForm = ({ onClose, initialType }) => {
         <ImageUpload images={form.images} onChange={urls => set('images', urls)} maxFiles={5} />
       </div>
 
+      {/* Room Types */}
+      <div className="pt-4 border-t border-gray-100">
+        <div className="flex justify-between items-center mb-2">
+          <label className={labelCls}>Room Types</label>
+          <button type="button" onClick={() => set('roomTypes', [...form.roomTypes, { name: '', totalInventory: '', capacity: '', price: '', amenities: '' }])} className="text-xs font-bold text-primary-600 bg-primary-50 px-2 py-1 rounded">
+            + Add Room Type
+          </button>
+        </div>
+        <div className="space-y-3">
+          {form.roomTypes.map((rt, i) => (
+            <div key={i} className="border border-gray-200 p-3 rounded-lg bg-gray-50 grid grid-cols-2 sm:grid-cols-4 gap-2 relative mt-2">
+              <button type="button" onClick={() => set('roomTypes', form.roomTypes.filter((_, idx) => idx !== i))} className="absolute -top-2 -right-2 bg-red-100 text-red-600 rounded-full p-1"><X className="w-3 h-3" /></button>
+              <div className="col-span-2">
+                <input required className={fieldCls} value={rt.name} onChange={e => { const newRt = [...form.roomTypes]; newRt[i].name = e.target.value; set('roomTypes', newRt); }} placeholder="Room Name (e.g. Standard)" />
+              </div>
+              <div>
+                <input required type="number" min="1" className={fieldCls} value={rt.totalInventory} onChange={e => { const newRt = [...form.roomTypes]; newRt[i].totalInventory = e.target.value; set('roomTypes', newRt); }} placeholder="Inventory" title="Total Inventory" />
+              </div>
+              <div>
+                <input required type="number" min="1" className={fieldCls} value={rt.capacity} onChange={e => { const newRt = [...form.roomTypes]; newRt[i].capacity = e.target.value; set('roomTypes', newRt); }} placeholder="Max Guests" title="Capacity" />
+              </div>
+              <div className="col-span-2">
+                <input required type="number" min="0" className={fieldCls} value={rt.price} onChange={e => { const newRt = [...form.roomTypes]; newRt[i].price = e.target.value; set('roomTypes', newRt); }} placeholder="Price per night" />
+              </div>
+              <div className="col-span-2">
+                <input className={fieldCls} value={typeof rt.amenities === 'string' ? rt.amenities : rt.amenities?.join(', ')} onChange={e => { const newRt = [...form.roomTypes]; newRt[i].amenities = e.target.value; set('roomTypes', newRt); }} placeholder="Amenities (comma-sep)" />
+              </div>
+            </div>
+          ))}
+          {form.roomTypes.length === 0 && <p className="text-xs text-gray-400 italic">No room types defined. Add room types so guests can book specific rooms.</p>}
+        </div>
+      </div>
+
       {/* Additional message */}
-      <div>
+      <div className="pt-4 border-t border-gray-100">
         <label className={labelCls}>Anything else you'd like to tell us?</label>
         <textarea rows={2} className={fieldCls} value={form.message} onChange={e => set('message', e.target.value)} placeholder="Special notes, preferred activation date, questions…" />
       </div>

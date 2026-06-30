@@ -31,7 +31,7 @@ router.get('/my-bookings', auth, ownerOnly, async (req, res) => {
     const propertyIds = myProperties.map(p => p._id);
 
     const bookings = await Booking.find({ property: { $in: propertyIds } })
-      .populate('property', 'name type location images platformPrice basePrice')
+      .populate('property', 'name type location images platformPrice basePrice roomTypes')
       .populate('user', 'name email')
       .sort({ createdAt: -1 });
 
@@ -56,17 +56,25 @@ router.get('/stats', auth, ownerOnly, async (req, res) => {
       .filter(b => b.status === 'Confirmed')
       .reduce((s, b) => s + (b.totalAmount || 0), 0);
 
-    // Owner profit = basePrice portion only (net rate × nights)
-    // Approximate: ratio of basePrice/platformPrice applied to totalAmount
-    const payoutRatios = {};
-    myProperties.forEach(p => { payoutRatios[p._id.toString()] = p.basePrice / p.platformPrice; });
+    let adminOwesOwner = 0;
+    let ownerOwesAdmin = 0;
 
-    const estimatedPayout = bookings
-      .filter(b => b.status === 'Confirmed')
-      .reduce((s, b) => {
-        const ratio = payoutRatios[b.property?.toString()] ?? 0.85;
-        return s + (b.totalAmount || 0) * ratio;
-      }, 0);
+    bookings.filter(b => b.status === 'Confirmed').forEach(b => {
+      const prop = myProperties.find(p => p._id.toString() === b.property?.toString());
+      if (!prop) return;
+
+      const nights = Math.max(1, Math.round((new Date(b.checkOutDate) - new Date(b.checkInDate)) / 86400000));
+      const rooms = b.numberOfRooms || 1;
+      
+      const adminShare = Math.max(0, (prop.platformPrice - prop.basePrice) * nights * rooms);
+      const ownerShare = Math.max(0, (b.totalAmount || 0) - adminShare);
+
+      if (b.paymentDetails?.method === 'PayAtHotel') {
+        ownerOwesAdmin += adminShare;
+      } else {
+        adminOwesOwner += ownerShare;
+      }
+    });
 
     res.json({
       totalProperties: myProperties.length,
@@ -76,7 +84,8 @@ router.get('/stats', auth, ownerOnly, async (req, res) => {
       checkedOutBookings: bookings.filter(b => b.status === 'Confirmed' && new Date(b.checkOutDate) < now).length,
       cancelledBookings: bookings.filter(b => b.status === 'Cancelled').length,
       totalRevenue: Math.round(totalRevenue),
-      estimatedPayout: Math.round(estimatedPayout),
+      adminOwesOwner: Math.round(adminOwesOwner),
+      ownerOwesAdmin: Math.round(ownerOwesAdmin),
     });
   } catch (err) {
     console.error(err.message);

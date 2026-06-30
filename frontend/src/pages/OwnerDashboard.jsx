@@ -153,22 +153,25 @@ export default function OwnerDashboard() {
               ) : (
                 <>
                   {/* Revenue highlight */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <div className="bg-gradient-to-br from-emerald-600 to-teal-600 rounded-2xl p-6 text-white shadow-lg">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="p-2 bg-white/20 rounded-xl"><IndianRupee className="w-5 h-5" /></div>
-                        <p className="text-sm font-semibold text-emerald-100">Platform Revenue (your properties)</p>
-                      </div>
-                      <p className="text-4xl font-extrabold">₹{fmt(stats?.totalRevenue)}</p>
-                      <p className="text-xs text-emerald-200 mt-1">from confirmed bookings</p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+                      <p className="text-sm font-semibold text-gray-500 mb-2">Platform Revenue (Total)</p>
+                      <p className="text-3xl font-extrabold text-gray-900">₹{fmt(stats?.totalRevenue)}</p>
+                      <p className="text-xs text-gray-400 mt-1">From confirmed bookings</p>
                     </div>
-                    <div className="bg-gradient-to-br from-teal-500 to-cyan-600 rounded-2xl p-6 text-white shadow-lg">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="p-2 bg-white/20 rounded-xl"><Wallet className="w-5 h-5" /></div>
-                        <p className="text-sm font-semibold text-teal-100">Estimated Your Payout</p>
+                    <div className="bg-gradient-to-br from-emerald-600 to-teal-600 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
+                      <div className="relative z-10">
+                        <p className="text-sm font-semibold text-emerald-100 mb-2">Admin Owes You</p>
+                        <p className="text-3xl font-extrabold">₹{fmt(stats?.adminOwesOwner)}</p>
+                        <p className="text-xs text-emerald-200 mt-1">From Online Payments (Razorpay etc)</p>
                       </div>
-                      <p className="text-4xl font-extrabold">₹{fmt(stats?.estimatedPayout)}</p>
-                      <p className="text-xs text-teal-200 mt-1">net rate × nights (approx)</p>
+                    </div>
+                    <div className="bg-gradient-to-br from-rose-500 to-red-600 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
+                      <div className="relative z-10">
+                        <p className="text-sm font-semibold text-rose-100 mb-2">You Owe Admin</p>
+                        <p className="text-3xl font-extrabold">₹{fmt(stats?.ownerOwesAdmin)}</p>
+                        <p className="text-xs text-rose-200 mt-1">Commission from Pay At Hotel bookings</p>
+                      </div>
                     </div>
                   </div>
 
@@ -311,16 +314,19 @@ export default function OwnerDashboard() {
                               <span>Manage Available Units</span>
                               <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">For offline bookings</span>
                             </p>
-                            {p.roomTypes?.map(rt => (
+                            {p.roomTypes?.map(rt => {
+                              const orig = rt.originalInventory ?? rt.totalInventory;
+                              return (
                               <div key={rt._id} className="flex justify-between items-center bg-gray-50 p-2 rounded-lg mb-1">
                                 <span className="font-medium text-gray-700 truncate mr-2">{rt.name}</span>
                                 <div className="flex items-center gap-2 shrink-0">
                                   <button onClick={() => updateInventory(p._id, rt._id, Math.max(0, rt.totalInventory - 1))} className="w-6 h-6 rounded bg-white border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-red-500 transition shadow-sm">-</button>
                                   <span className="font-bold text-sm w-4 text-center">{rt.totalInventory}</span>
-                                  <button onClick={() => updateInventory(p._id, rt._id, rt.totalInventory + 1)} className="w-6 h-6 rounded bg-white border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-emerald-500 transition shadow-sm">+</button>
+                                  <button onClick={() => updateInventory(p._id, rt._id, Math.min(orig, rt.totalInventory + 1))} className="w-6 h-6 rounded bg-white border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-emerald-500 transition shadow-sm">+</button>
+                                  <span className="text-gray-400 text-xs ml-1 w-6">/ {orig}</span>
                                 </div>
                               </div>
-                            ))}
+                            )})}
                           </div>
 
                           <button onClick={() => { setBFilter('All'); setTab('bookings'); }}
@@ -384,7 +390,14 @@ export default function OwnerDashboard() {
                                     <p className="font-medium text-gray-900">{b.user?.name || 'Guest'}</p>
                                     <p className="text-xs text-gray-400">{b.user?.email}</p>
                                   </td>
-                                  <td className="px-4 py-3 text-gray-700 max-w-[130px] truncate">{b.property?.name}</td>
+                                  <td className="px-4 py-3">
+                                    <p className="text-gray-700 font-medium max-w-[130px] truncate">{b.property?.name}</p>
+                                    {b.roomTypeId && b.property?.roomTypes && (
+                                      <p className="text-xs text-gray-500 mt-0.5">
+                                        {b.numberOfRooms || 1} × {b.property.roomTypes.find(rt => rt._id === b.roomTypeId)?.name || 'Room'}
+                                      </p>
+                                    )}
+                                  </td>
                                   <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{fmtD(b.checkInDate)}</td>
                                   <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{fmtD(b.checkOutDate)}</td>
                                   <td className="px-4 py-3 text-center text-gray-600">{nights}</td>

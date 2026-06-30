@@ -4,7 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Home, CalendarDays, Users, Plus, X, Edit3,
   Loader2, IndianRupee, TrendingUp, CheckCircle, XCircle,
-  Clock, ToggleLeft, ToggleRight, Search, ChevronDown, Building, LogOut, UserPlus, UploadCloud
+  Clock, ToggleLeft, ToggleRight, Search, ChevronDown, Building, LogOut, UserPlus, UploadCloud,
+  ExternalLink, Eye
 } from 'lucide-react';
 import Modal from '../components/common/Modal';
 import ImageUpload from '../components/common/ImageUpload';
@@ -29,14 +30,17 @@ const EMPTY_FORM = {
   ownedBy: '', roomTypes: [],
 };
 
-const PropertyForm = ({ initial, onSave, onCancel, loading, owners = [] }) => {
-  const [form, setForm] = useState(initial || EMPTY_FORM);
+const PropertyForm = ({ property, onSave, onClose, onOnboardSuccess, owners = [], headers }) => {
+  const [form, setForm] = useState(property || EMPTY_FORM);
+  const [loading, setLoading] = useState(false);
+  const [submitAction, setSubmitAction] = useState('save');
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const setLoc = (k, v) => setForm(f => ({ ...f, location: { ...f.location, [k]: v } }));
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onSave({
+    setLoading(true);
+    const payload = {
       ...form,
       basePrice: Number(form.basePrice),
       platformPrice: Number(form.platformPrice),
@@ -46,20 +50,67 @@ const PropertyForm = ({ initial, onSave, onCancel, loading, owners = [] }) => {
       images: typeof form.images === 'string' ? form.images.split(',').map(s => s.trim()).filter(Boolean) : form.images,
       roomTypes: (form.roomTypes || []).map(rt => ({
         ...rt,
+        originalInventory: rt.originalInventory !== undefined ? Number(rt.originalInventory) : Number(rt.totalInventory),
         totalInventory: Number(rt.totalInventory),
         capacity: Number(rt.capacity),
         price: Number(rt.price),
         amenities: typeof rt.amenities === 'string' ? rt.amenities.split(',').map(s => s.trim()).filter(Boolean) : rt.amenities,
       }))
-    });
+    };
+    if (!payload.ownedBy) delete payload.ownedBy;
+    try {
+      let savedProp;
+      if (property) {
+        const res = await fetch(`${API_BASE}/api/properties/${property._id}`, {
+          method: 'PUT', headers, body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error('Failed to update property');
+        savedProp = await res.json();
+      } else {
+        const res = await fetch(`${API_BASE}/api/properties`, {
+          method: 'POST', headers, body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error('Failed to create property');
+        savedProp = await res.json();
+      }
+
+      if (submitAction === 'approve' && savedProp && !savedProp.isActive && savedProp.ownerContact?.email) {
+        const obRes = await fetch(`${API_BASE}/api/properties/${savedProp._id}/onboard`, {
+          method: 'POST', headers
+        });
+        if (!obRes.ok) throw new Error('Failed to approve and onboard');
+        const obData = await obRes.json();
+        savedProp = obData.property;
+        if (onOnboardSuccess && obData.owner) {
+          onOnboardSuccess(obData.owner);
+        }
+      }
+      onSave(savedProp);
+    } catch (err) { alert(err.message); } finally { setLoading(false); }
   };
 
   const fieldCls = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500";
   const labelCls = "block text-xs font-semibold text-gray-500 uppercase mb-1";
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <form onSubmit={handleSubmit} className="space-y-4 max-h-[80vh] overflow-y-auto px-6 pt-4 pb-2">
+      {property && property.ownerContact && (
+        <div className="mb-2 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+          <h3 className="font-bold text-amber-900 mb-3 text-sm">Enquiry Submitter Details</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-amber-800">
+            <div><span className="font-semibold">Name:</span> {property.ownerContact.name}</div>
+            <div><span className="font-semibold">Phone:</span> {property.ownerContact.phone}</div>
+            <div className="col-span-1 sm:col-span-2"><span className="font-semibold">Email:</span> {property.ownerContact.email}</div>
+            {property.ownerNote && (
+              <div className="col-span-1 sm:col-span-2 mt-1">
+                <span className="font-semibold">Note from Owner:</span>
+                <p className="mt-1 bg-white/60 p-2.5 rounded-lg border border-amber-200 whitespace-pre-wrap">{property.ownerNote}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className={labelCls}>Property Name *</label>
           <input required className={fieldCls} value={form.name} onChange={e => set('name', e.target.value)} placeholder="Grand Horizon Hotel" />
@@ -115,7 +166,7 @@ const PropertyForm = ({ initial, onSave, onCancel, loading, owners = [] }) => {
       <div className="pt-4 border-t border-gray-100">
         <div className="flex justify-between items-center mb-2">
           <label className={labelCls}>Room Types</label>
-          <button type="button" onClick={() => set('roomTypes', [...(form.roomTypes || []), { name: '', totalInventory: 1, capacity: 2, price: form.basePrice || 0, amenities: '' }])} className="text-xs font-bold text-primary-600 bg-primary-50 px-2 py-1 rounded">
+          <button type="button" onClick={() => set('roomTypes', [...(form.roomTypes || []), { name: '', totalInventory: '', capacity: '', price: form.basePrice || '', amenities: '' }])} className="text-xs font-bold text-primary-600 bg-primary-50 px-2 py-1 rounded">
             + Add Room Type
           </button>
         </div>
@@ -127,7 +178,7 @@ const PropertyForm = ({ initial, onSave, onCancel, loading, owners = [] }) => {
                 <input required className={fieldCls} value={rt.name} onChange={e => { const newRt = [...form.roomTypes]; newRt[i].name = e.target.value; set('roomTypes', newRt); }} placeholder="Room Name (e.g. Standard)" />
               </div>
               <div>
-                <input required type="number" min="1" className={fieldCls} value={rt.totalInventory} onChange={e => { const newRt = [...form.roomTypes]; newRt[i].totalInventory = e.target.value; set('roomTypes', newRt); }} placeholder="Qty" title="Total Inventory" />
+                <input required type="number" min="0" className={fieldCls} value={rt.totalInventory} onChange={e => { const newRt = [...form.roomTypes]; newRt[i].totalInventory = e.target.value; set('roomTypes', newRt); }} placeholder="Inventory" title="Total Inventory" />
               </div>
               <div>
                 <input required type="number" min="1" className={fieldCls} value={rt.capacity} onChange={e => { const newRt = [...form.roomTypes]; newRt[i].capacity = e.target.value; set('roomTypes', newRt); }} placeholder="Max Guests" title="Capacity" />
@@ -153,12 +204,21 @@ const PropertyForm = ({ initial, onSave, onCancel, loading, owners = [] }) => {
           ))}
         </select>
       </div>
-      <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
-        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-semibold text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition">Cancel</button>
-        <button type="submit" disabled={loading} className="px-5 py-2 text-sm font-bold bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-60 transition flex items-center gap-2">
-          {loading && <Loader2 className="w-4 h-4 animate-spin" />} Save Property
-        </button>
-      </div>
+      <div className="p-6 border-t border-gray-100 bg-gray-50 flex justify-end gap-3 rounded-b-2xl">
+          <button type="button" onClick={onClose} className="px-5 py-2.5 text-sm font-bold text-gray-600 hover:bg-gray-200 rounded-xl transition">Cancel</button>
+          
+          <button type="submit" onClick={() => setSubmitAction('save')} disabled={loading} className="px-6 py-2.5 border border-primary-600 text-primary-600 hover:bg-primary-50 text-sm font-bold rounded-xl transition flex items-center gap-2">
+            {loading && submitAction === 'save' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Edit3 className="w-4 h-4" />}
+            Save Changes
+          </button>
+
+          {property && !property.isActive && property.ownerContact?.email && (
+            <button type="submit" onClick={() => setSubmitAction('approve')} disabled={loading} className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl shadow-lg transition flex items-center gap-2">
+              {loading && submitAction === 'approve' ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+              Save & Approve
+            </button>
+          )}
+        </div>
     </form>
   );
 };
@@ -180,7 +240,6 @@ export default function Admin() {
   /* ── modals ── */
   const [showAddModal, setShowAddModal] = useState(false);
   const [editProp, setEditProp] = useState(null);
-  const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [onboardResult, setOnboardResult] = useState(null);
 
@@ -189,6 +248,7 @@ export default function Admin() {
   const [propSearch, setPropSearch] = useState('');
   const [userSearch, setUserSearch] = useState('');
   const [userRoleTab, setUserRoleTab] = useState('all');
+  const [statsPropId, setStatsPropId] = useState(null);
 
   const headers = { 'Content-Type': 'application/json', 'x-auth-token': token };
 
@@ -200,7 +260,6 @@ export default function Admin() {
         fetch(`${API_BASE}/api/bookings/all`, { headers }),
         fetch(`${API_BASE}/api/users/all`, { headers }),
       ]);
-      // properties — include inactive ones for admin
       const pData = await pRes.json();
       setProperties(Array.isArray(pData) ? pData : []);
       const bData = await bRes.json();
@@ -213,31 +272,6 @@ export default function Admin() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  /* ── property CRUD ── */
-  const handleAddProperty = async (data) => {
-    setSaving(true); setSaveError('');
-    try {
-      const res = await fetch(`${API_BASE}/api/properties`, { method: 'POST', headers, body: JSON.stringify(data) });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.msg || 'Failed');
-      setProperties(p => [d, ...p]);
-      setShowAddModal(false);
-    } catch (e) { setSaveError(e.message); }
-    finally { setSaving(false); }
-  };
-
-  const handleEditProperty = async (data) => {
-    setSaving(true); setSaveError('');
-    try {
-      const res = await fetch(`${API_BASE}/api/properties/${editProp._id}`, { method: 'PUT', headers, body: JSON.stringify(data) });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.msg || 'Failed');
-      setProperties(p => p.map(x => x._id === d._id ? d : x));
-      setEditProp(null);
-    } catch (e) { setSaveError(e.message); }
-    finally { setSaving(false); }
-  };
-
   const toggleActive = async (prop) => {
     try {
       const res = await fetch(`${API_BASE}/api/properties/${prop._id}`, {
@@ -248,19 +282,18 @@ export default function Admin() {
     } catch {}
   };
 
-  const handleOnboard = async (prop) => {
+  const updateInventory = async (propertyId, roomTypeId, newInventory) => {
     try {
-      const res = await fetch(`${API_BASE}/api/properties/${prop._id}/onboard`, {
-        method: 'POST', headers
+      const res = await fetch(`${API_BASE}/api/properties/${propertyId}/inventory`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ roomTypeId, totalInventory: newInventory })
       });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.msg || 'Failed');
-      
-      setProperties(p => p.map(x => x._id === d.property._id ? d.property : x));
-      setOnboardResult(d.owner);
-    } catch (e) {
-      alert('Error onboarding: ' + e.message);
-    }
+      if (res.ok) {
+        const d = await res.json();
+        setProperties(p => p.map(x => x._id === d._id ? d : x));
+      }
+    } catch (e) { console.error(e); }
   };
 
   /* ── stats ── */
@@ -268,15 +301,32 @@ export default function Admin() {
   const cancelledBookings = bookings.filter(b => b.status === 'Cancelled');
   const now = new Date();
   const checkedOut = bookings.filter(b => b.status === 'Confirmed' && new Date(b.checkOutDate) < now);
-  const revenue = bookings.filter(b => b.status === 'Confirmed').reduce((s, b) => s + (b.totalAmount || 0), 0);
+  let adminOwesOwner = 0;
+  let ownerOwesAdmin = 0;
+  const revenue = confirmedBookings.reduce((s, b) => {
+    const prop = b.property;
+    if (prop) {
+      const nights = Math.max(1, Math.round((new Date(b.checkOutDate) - new Date(b.checkInDate)) / 86400000));
+      const rooms = b.numberOfRooms || 1;
+      const adminShare = Math.max(0, ((prop.platformPrice || 0) - (prop.basePrice || 0)) * nights * rooms);
+      const ownerShare = Math.max(0, (b.totalAmount || 0) - adminShare);
+
+      if (b.paymentDetails?.method === 'PayAtHotel') {
+        ownerOwesAdmin += adminShare;
+      } else {
+        adminOwesOwner += ownerShare;
+      }
+    }
+    return s + (b.totalAmount || 0);
+  }, 0);
+
   const stats = [
-    { label: 'Total Revenue',       value: `₹${fmt(revenue)}`, icon: IndianRupee,    color: 'bg-green-50 text-green-600' },
     { label: 'Active Properties',   value: properties.filter(p => p.isActive).length, icon: Home,          color: 'bg-blue-50 text-blue-600' },
     { label: 'Total Bookings',      value: bookings.length,     icon: CalendarDays,   color: 'bg-purple-50 text-purple-600' },
     { label: 'Registered Users',    value: users.length,        icon: Users,          color: 'bg-orange-50 text-orange-600' },
+    { label: 'Pending Enquiries',   value: properties.filter(p => !p.isActive).length, icon: Building,     color: 'bg-amber-50 text-amber-600' },
   ];
 
-  /* ── booking display helper ── */
   const bookingLabel = (b) => {
     if (b.status === 'Cancelled') return { label: 'Cancelled', cls: STATUS_STYLE.Cancelled };
     if (new Date(b.checkOutDate) < now) return { label: 'Checked Out', cls: STATUS_STYLE.CheckedOut };
@@ -299,7 +349,6 @@ export default function Admin() {
     u.email?.toLowerCase().includes(userSearch.toLowerCase())
   );
 
-  /* ── nav items ── */
   const navItems = [
     { id: 'overview',    icon: LayoutDashboard, label: 'Overview' },
     { id: 'properties',  icon: Home,            label: 'Properties' },
@@ -310,7 +359,6 @@ export default function Admin() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col lg:flex-row font-sans">
 
-      {/* ── Sidebar ─────────────────────────────────────── */}
       <aside className="w-full lg:w-60 bg-gray-900 text-white flex flex-col shrink-0 lg:min-h-screen">
         <div className="h-16 flex items-center px-6 border-b border-gray-800 gap-2">
           <Building className="w-6 h-6 text-primary-400" />
@@ -337,11 +385,9 @@ export default function Admin() {
         </div>
       </aside>
 
-      {/* ── Main ────────────────────────────────────────── */}
       <main className="flex-1 overflow-y-auto">
         <div className="py-8 px-4 sm:px-6 lg:px-8">
 
-          {/* Title bar */}
           <div className="flex justify-between items-center mb-8">
             <div>
               <h1 className="text-2xl font-extrabold text-gray-900 capitalize">
@@ -350,17 +396,37 @@ export default function Admin() {
               <p className="text-sm text-gray-500">Welcome back, {user?.name}</p>
             </div>
             {activeTab === 'properties' && (
-              <button onClick={() => { setSaveError(''); setShowAddModal(true); }}
+              <button onClick={() => { setSaveError(''); setEditProp(null); setShowAddModal(true); }}
                 className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition shadow-sm">
                 <Plus className="w-4 h-4" /> Add Property
               </button>
             )}
           </div>
 
-          {/* ═══ OVERVIEW ═══ */}
           {activeTab === 'overview' && (
             <div className="space-y-8">
-              {/* Stat cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+                  <p className="text-sm font-semibold text-gray-500 mb-2">Platform Revenue (Total)</p>
+                  <p className="text-3xl font-extrabold text-gray-900">₹{fmt(revenue)}</p>
+                  <p className="text-xs text-gray-400 mt-1">From all confirmed bookings</p>
+                </div>
+                <div className="bg-gradient-to-br from-rose-500 to-red-600 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
+                  <div className="relative z-10">
+                    <p className="text-sm font-semibold text-rose-100 mb-2">You Owe Owners</p>
+                    <p className="text-3xl font-extrabold">₹{fmt(adminOwesOwner)}</p>
+                    <p className="text-xs text-rose-200 mt-1">From Online Payments (Razorpay etc)</p>
+                  </div>
+                </div>
+                <div className="bg-gradient-to-br from-emerald-600 to-teal-600 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
+                  <div className="relative z-10">
+                    <p className="text-sm font-semibold text-emerald-100 mb-2">Owners Owe You</p>
+                    <p className="text-3xl font-extrabold">₹{fmt(ownerOwesAdmin)}</p>
+                    <p className="text-xs text-emerald-200 mt-1">Commission from Pay At Hotel</p>
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
                 {stats.map(s => (
                   <div key={s.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
@@ -373,7 +439,6 @@ export default function Admin() {
                 ))}
               </div>
 
-              {/* Quick booking breakdown */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 {[
                   { label: 'Upcoming',   count: confirmedBookings.filter(b => new Date(b.checkOutDate) >= now).length, icon: Clock,         cls: 'text-blue-600 bg-blue-50' },
@@ -391,7 +456,6 @@ export default function Admin() {
                 ))}
               </div>
 
-              {/* Recent bookings preview */}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
                   <h3 className="font-bold text-gray-900">Recent Bookings</h3>
@@ -428,7 +492,6 @@ export default function Admin() {
             </div>
           )}
 
-          {/* ═══ PROPERTIES ═══ */}
           {activeTab === 'properties' && (
             <div className="space-y-5">
               <div className="relative w-full sm:w-72">
@@ -442,21 +505,32 @@ export default function Admin() {
                   <table className="min-w-full text-sm">
                     <thead className="bg-gray-50">
                       <tr>
-                        {['Property', 'Type', 'City', 'Base ₹', 'Platform ₹', 'Margin', 'Rating', 'Status', 'Actions'].map(h => (
+                        {['Property', 'Type', 'City', 'Base ₹', 'Platform ₹', 'Margin', 'Rating', 'Inventory', 'Status', 'Actions'].map(h => (
                           <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {loadingProp
-                        ? <tr><td colSpan={9} className="px-5 py-8 text-center"><Loader2 className="w-6 h-6 animate-spin text-primary-600 inline" /></td></tr>
+                        ? <tr><td colSpan={10} className="px-5 py-8 text-center"><Loader2 className="w-6 h-6 animate-spin text-primary-600 inline" /></td></tr>
                         : filteredProps.length === 0
-                          ? <tr><td colSpan={9} className="px-5 py-8 text-center text-gray-400">No properties found</td></tr>
+                          ? <tr><td colSpan={10} className="px-5 py-8 text-center text-gray-400">No properties found</td></tr>
                           : filteredProps.map(p => {
                               const margin = p.platformPrice - p.basePrice;
                               return (
-                                <tr key={p._id} className={`hover:bg-gray-50 ${!p.isActive ? 'opacity-50' : ''}`}>
-                                  <td className="px-5 py-3 font-semibold text-gray-900 max-w-[160px] truncate">{p.name}</td>
+                                <React.Fragment key={p._id}>
+                                <tr className={`hover:bg-gray-50 ${!p.isActive ? 'bg-amber-50/30' : ''}`}>
+                                  <td className="px-5 py-3 max-w-[160px] truncate">
+                                    <Link to={`/property/${p._id}`} target="_blank" className="font-semibold text-primary-600 hover:text-primary-800 hover:underline flex items-center gap-1.5" title="View Property Page">
+                                      {p.name}
+                                      <ExternalLink className="w-3 h-3" />
+                                    </Link>
+                                    {!p.isActive && p.ownerContact && (
+                                      <div className="mt-1 text-xs text-amber-700">
+                                        <span className="font-bold">Contact:</span> {p.ownerContact.name}
+                                      </div>
+                                    )}
+                                  </td>
                                   <td className="px-5 py-3"><span className={`px-2 py-0.5 rounded text-xs font-bold ${p.type === 'Hotel' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>{p.type}</span></td>
                                   <td className="px-5 py-3 text-gray-600">{p.location?.city}</td>
                                   <td className="px-5 py-3 text-gray-600">₹{fmt(p.basePrice)}</td>
@@ -464,9 +538,26 @@ export default function Admin() {
                                   <td className="px-5 py-3 text-green-600 font-semibold">+₹{fmt(margin)}</td>
                                   <td className="px-5 py-3 text-gray-600">{p.rating ?? '—'}</td>
                                   <td className="px-5 py-3">
+                                    <div className="space-y-1.5 min-w-[120px]">
+                                      {p.roomTypes?.length > 0 ? p.roomTypes.map(rt => {
+                                        const orig = rt.originalInventory ?? rt.totalInventory;
+                                        return (
+                                        <div key={rt._id} className="flex justify-between items-center text-xs">
+                                          <span className="text-gray-500 truncate mr-2 max-w-[60px]" title={rt.name}>{rt.name}</span>
+                                          <div className="flex items-center gap-1">
+                                            <button onClick={() => updateInventory(p._id, rt._id, Math.max(0, rt.totalInventory - 1))} className="w-5 h-5 rounded border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition">-</button>
+                                            <span className="font-bold w-4 text-center">{rt.totalInventory}</span>
+                                            <button onClick={() => updateInventory(p._id, rt._id, Math.min(orig, rt.totalInventory + 1))} className="w-5 h-5 rounded border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-emerald-50 hover:text-emerald-500 hover:border-emerald-200 transition">+</button>
+                                            <span className="text-gray-400 text-[10px] ml-1">/ {orig}</span>
+                                          </div>
+                                        </div>
+                                      )}) : <span className="text-gray-400 italic text-xs">No rooms added</span>}
+                                    </div>
+                                  </td>
+                                  <td className="px-5 py-3">
                                     {!p.isActive && p.ownerContact?.email ? (
-                                      <button onClick={() => handleOnboard(p)} className="bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm transition">
-                                        Approve & Onboard
+                                      <button onClick={() => { setSaveError(''); setEditProp(p); }} className="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 text-xs font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                                        <CheckCircle className="w-3.5 h-3.5" /> Review & Approve
                                       </button>
                                     ) : (
                                       <button onClick={() => toggleActive(p)} className="flex items-center gap-1 text-xs font-semibold">
@@ -475,14 +566,65 @@ export default function Admin() {
                                     )}
                                   </td>
                                   <td className="px-5 py-3">
-                                    <button onClick={() => { setSaveError(''); setEditProp(p); }}
-                                      className="flex items-center gap-1 text-primary-600 hover:text-primary-800 font-semibold text-xs">
-                                      <Edit3 className="w-3.5 h-3.5" /> Edit
-                                    </button>
+                                    <div className="flex items-center gap-3">
+                                      <Link to={`/property/${p._id}`} target="_blank"
+                                        className="flex items-center gap-1 text-emerald-600 hover:text-emerald-800 font-semibold text-xs" title="Review Property Page">
+                                        <Eye className="w-3.5 h-3.5" /> View
+                                      </Link>
+                                      <button onClick={() => { setSaveError(''); setEditProp(p); }}
+                                        className="flex items-center gap-1 text-primary-600 hover:text-primary-800 font-semibold text-xs">
+                                        <Edit3 className="w-3.5 h-3.5" /> Edit
+                                      </button>
+                                      <button onClick={() => setStatsPropId(statsPropId === p._id ? null : p._id)}
+                                        className="flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs">
+                                        <TrendingUp className="w-3.5 h-3.5" /> Stats
+                                      </button>
+                                    </div>
                                   </td>
                                 </tr>
-                              );
-                            })}
+                                {statsPropId === p._id && (
+                                  <tr className="bg-blue-50/40">
+                                    <td colSpan={10} className="px-5 py-6 border-b border-blue-100">
+                                      {(() => {
+                                        const pBookings = bookings.filter(b => b.property?._id === p._id);
+                                        const confirmed = pBookings.filter(b => b.status === 'Confirmed');
+                                        const cancelled = pBookings.filter(b => b.status === 'Cancelled').length;
+                                        const now = new Date();
+                                        const upcoming = confirmed.filter(b => new Date(b.checkOutDate) >= now).length;
+                                        const checkedOut = confirmed.filter(b => new Date(b.checkOutDate) < now).length;
+                                        const rev = confirmed.reduce((s, b) => s + (b.totalAmount || 0), 0);
+                                        
+                                        return (
+                                          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                            <div className="bg-white p-4 rounded-xl shadow-sm border border-blue-100/50 flex flex-col items-center justify-center text-center">
+                                              <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Total Bookings</p>
+                                              <p className="text-2xl font-extrabold text-gray-900">{pBookings.length}</p>
+                                            </div>
+                                            <div className="bg-white p-4 rounded-xl shadow-sm border border-blue-100/50 flex flex-col items-center justify-center text-center">
+                                              <p className="text-xs text-blue-500 font-bold uppercase tracking-wider mb-1">Upcoming</p>
+                                              <p className="text-2xl font-extrabold text-gray-900">{upcoming}</p>
+                                            </div>
+                                            <div className="bg-white p-4 rounded-xl shadow-sm border border-blue-100/50 flex flex-col items-center justify-center text-center">
+                                              <p className="text-xs text-emerald-500 font-bold uppercase tracking-wider mb-1">Checked Out</p>
+                                              <p className="text-2xl font-extrabold text-gray-900">{checkedOut}</p>
+                                            </div>
+                                            <div className="bg-white p-4 rounded-xl shadow-sm border border-blue-100/50 flex flex-col items-center justify-center text-center">
+                                              <p className="text-xs text-red-500 font-bold uppercase tracking-wider mb-1">Cancelled</p>
+                                              <p className="text-2xl font-extrabold text-gray-900">{cancelled}</p>
+                                            </div>
+                                            <div className="bg-white p-4 rounded-xl shadow-sm border border-blue-100/50 flex flex-col items-center justify-center text-center">
+                                              <p className="text-xs text-purple-500 font-bold uppercase tracking-wider mb-1">Total Revenue</p>
+                                              <p className="text-2xl font-extrabold text-gray-900">₹{fmt(rev)}</p>
+                                            </div>
+                                          </div>
+                                        );
+                                      })()}
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
                     </tbody>
                   </table>
                 </div>
@@ -533,7 +675,14 @@ export default function Admin() {
                                     <p className="font-medium text-gray-900">{b.user?.name || 'Guest'}</p>
                                     <p className="text-xs text-gray-400">{b.user?.email}</p>
                                   </td>
-                                  <td className="px-4 py-3 text-gray-700 max-w-[140px] truncate">{b.property?.name || '—'}</td>
+                                  <td className="px-4 py-3">
+                                    <p className="text-gray-700 font-medium max-w-[140px] truncate">{b.property?.name || '—'}</p>
+                                    {b.roomTypeId && b.property?.roomTypes && (
+                                      <p className="text-xs text-gray-500 mt-0.5">
+                                        {b.numberOfRooms || 1} × {b.property.roomTypes.find(rt => rt._id === b.roomTypeId)?.name || 'Room'}
+                                      </p>
+                                    )}
+                                  </td>
                                   <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{fmtDate(b.checkInDate)}</td>
                                   <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{fmtDate(b.checkOutDate)}</td>
                                   <td className="px-4 py-3 text-center text-gray-700">{b.guests}</td>
@@ -685,9 +834,11 @@ export default function Admin() {
         <Modal title="Add New Property" onClose={() => setShowAddModal(false)}>
           {saveError && <p className="text-red-600 text-sm mb-4 bg-red-50 px-3 py-2 rounded-lg">{saveError}</p>}
           <PropertyForm
-            onSave={handleAddProperty}
-            onCancel={() => setShowAddModal(false)}
-            loading={saving}
+            property={null}
+            headers={headers}
+            onSave={(savedProp) => { setProperties(p => [savedProp, ...p]); setShowAddModal(false); }}
+            onClose={() => setShowAddModal(false)}
+            onOnboardSuccess={setOnboardResult}
             owners={users.filter(u => u.role === 'owner')}
           />
         </Modal>
@@ -698,16 +849,20 @@ export default function Admin() {
         <Modal title={`Edit — ${editProp.name}`} onClose={() => setEditProp(null)}>
           {saveError && <p className="text-red-600 text-sm mb-4 bg-red-50 px-3 py-2 rounded-lg">{saveError}</p>}
           <PropertyForm
-            initial={{
+            property={{
               ...editProp,
               amenities: editProp.amenities?.join(', ') ?? '',
               images: editProp.images ?? [],
               ownedBy: editProp.ownedBy?._id ?? editProp.ownedBy ?? '',
               roomTypes: editProp.roomTypes?.map(rt => ({ ...rt, amenities: rt.amenities?.join(', ') ?? '' })) ?? []
             }}
-            onSave={handleEditProperty}
-            onCancel={() => setEditProp(null)}
-            loading={saving}
+            headers={headers}
+            onSave={(savedProp) => {
+              setProperties(p => p.map(x => x._id === savedProp._id ? savedProp : x));
+              setEditProp(null);
+            }}
+            onClose={() => setEditProp(null)}
+            onOnboardSuccess={setOnboardResult}
             owners={users.filter(u => u.role === 'owner')}
           />
         </Modal>

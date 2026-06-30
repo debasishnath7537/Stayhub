@@ -87,6 +87,16 @@ const Navbar = () => {
                           Admin Panel
                         </Link>
                       )}
+                      {user.role === 'owner' && (
+                        <Link
+                          to="/owner"
+                          onClick={() => setDropdownOpen(false)}
+                          className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                          <Building className="w-4 h-4 text-gray-400" />
+                          Owner Panel
+                        </Link>
+                      )}
                       <hr className="my-1 border-gray-100" />
                       <button
                         onClick={handleLogout}
@@ -137,6 +147,12 @@ const Navbar = () => {
                 </div>
               </div>
               <Link to="/dashboard" onClick={() => setIsOpen(false)} className="block px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-50 rounded-md flex items-center gap-2"><LayoutDashboard className="w-4 h-4" /> My Profile & Bookings</Link>
+              {user.role === 'admin' && (
+                <Link to="/admin" onClick={() => setIsOpen(false)} className="block px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-50 rounded-md flex items-center gap-2"><Building className="w-4 h-4" /> Admin Panel</Link>
+              )}
+              {user.role === 'owner' && (
+                <Link to="/owner" onClick={() => setIsOpen(false)} className="block px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-50 rounded-md flex items-center gap-2"><Building className="w-4 h-4" /> Owner Panel</Link>
+              )}
               <button onClick={handleLogout} className="w-full text-left block px-3 py-2 text-base font-medium text-red-600 hover:bg-red-50 rounded-md flex items-center gap-2"><LogOut className="w-4 h-4" /> Log out</button>
             </>
           ) : (
